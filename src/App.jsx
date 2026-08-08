@@ -1,14 +1,41 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import { ProfileProvider } from './lib/ProfileContext'
 import LandingPage from './components/LandingPage'
 import AuthPage from './components/AuthPage'
 import DownlineTracker from './components/DownlineTracker'
 import Announcements from './components/Announcements'
+import TermsPage from './components/TermsPage'
+import PrivacyPage from './components/PrivacyPage'
+
+function viewFromPath() {
+  const p = window.location.pathname
+  if (p === '/terms') return 'terms'
+  if (p === '/privacy') return 'privacy'
+  if (p === '/login') return 'login'
+  if (p === '/signup') return 'signup'
+  return 'landing'
+}
 
 function AppInner() {
   const { session } = useAuth()
-  const [view, setView] = useState('landing') // landing | login | signup
+  const [view, setView] = useState(viewFromPath)
+
+  const navigate = (v) => {
+    const path = v === 'landing' ? '/' : `/${v}`
+    window.history.pushState(null, '', path)
+    setView(v)
+    window.scrollTo(0, 0)
+  }
+
+  useEffect(() => {
+    const onPop = () => setView(viewFromPath())
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  if (view === 'terms') return <TermsPage onNavigate={navigate} />
+  if (view === 'privacy') return <PrivacyPage onNavigate={navigate} />
 
   if (session === undefined) {
     return (
@@ -34,10 +61,10 @@ function AppInner() {
   }
 
   if (view === 'login' || view === 'signup') {
-    return <AuthPage initialMode={view} onBack={() => setView('landing')} />
+    return <AuthPage initialMode={view} onBack={() => navigate('landing')} />
   }
 
-  return <LandingPage onNavigate={setView} />
+  return <LandingPage onNavigate={navigate} />
 }
 
 export default function App() {

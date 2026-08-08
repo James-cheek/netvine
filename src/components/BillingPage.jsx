@@ -74,6 +74,12 @@ export default function BillingPage({ onBack }) {
         <div style={styles.email}>
           Signed in as {profile?.email || '...'}
         </div>
+
+        <div style={styles.legalLinks}>
+          <a href="/terms" style={styles.legalLink}>Terms of Service</a>
+          <span style={styles.legalDot}>&middot;</span>
+          <a href="/privacy" style={styles.legalLink}>Privacy Policy</a>
+        </div>
       </div>
 
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
@@ -228,5 +234,21 @@ const styles = {
     color: COLORS.muted,
     marginTop: 24,
     textAlign: 'center',
+  },
+  legalLinks: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    fontSize: 13,
+  },
+  legalLink: {
+    color: COLORS.accent,
+    textDecoration: 'none',
+    fontWeight: 600,
+  },
+  legalDot: {
+    color: COLORS.muted,
   },
 }

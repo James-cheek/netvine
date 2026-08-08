@@ -231,6 +231,11 @@ export default function LandingPage({ onNavigate }) {
       {/* footer */}
       <footer style={styles.footer}>
         <img src="/logo-mark.svg" alt="" style={{ height: 28, opacity: 0.4 }} />
+        <div style={styles.footerLinks}>
+          <button style={styles.footerLink} onClick={() => onNavigate('terms')}>Terms</button>
+          <span style={styles.footerDot}>&middot;</span>
+          <button style={styles.footerLink} onClick={() => onNavigate('privacy')}>Privacy</button>
+        </div>
         <div style={styles.footerText}>
           Netvine — grow your network.
         </div>
@@ -526,6 +531,25 @@ const styles = {
     flexDirection: 'column',
     alignItems: 'center',
     gap: 8,
+  },
+  footerLinks: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    fontSize: 13,
+  },
+  footerLink: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    color: C.accent,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'system-ui, sans-serif',
+  },
+  footerDot: {
+    color: C.muted,
   },
   footerText: {
     fontSize: 13,
