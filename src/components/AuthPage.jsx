@@ -1,5 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+
+const MAX_ATTEMPTS = 5
+const COOLDOWN_SECONDS = 30
 
 const COLORS = {
   canvas: '#F4F3EE',
@@ -17,16 +20,50 @@ export default function AuthPage({ initialMode = 'login', onBack }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState(null)
   const [error, setError] = useState(null)
+  const [failCount, setFailCount] = useState(0)
+  const [cooldown, setCooldown] = useState(0)
+  const timerRef = useRef(null)
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [])
+
+  const startCooldown = () => {
+    setCooldown(COOLDOWN_SECONDS)
+    timerRef.current = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current)
+          timerRef.current = null
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }
+
+  const locked = cooldown > 0
 
   const clearFeedback = () => { setMessage(null); setError(null) }
 
   const handleLogin = async (e) => {
     e.preventDefault()
+    if (locked) return
     clearFeedback()
     setLoading(true)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
-    if (error) setError(error.message)
+    if (error) {
+      const next = failCount + 1
+      setFailCount(next)
+      if (next >= MAX_ATTEMPTS) {
+        setError(`Too many failed attempts. Please wait ${COOLDOWN_SECONDS} seconds.`)
+        setFailCount(0)
+        startCooldown()
+      } else {
+        setError(error.message)
+      }
+    }
   }
 
   const handleSignup = async (e) => {
@@ -97,8 +134,16 @@ export default function AuthPage({ initialMode = 'login', onBack }) {
           {error && <div style={styles.error}>{error}</div>}
           {message && <div style={styles.success}>{message}</div>}
 
-          <button type="submit" disabled={loading} style={styles.submitBtn}>
-            {loading ? 'Please wait...' :
+          <button
+            type="submit"
+            disabled={loading || locked}
+            style={{
+              ...styles.submitBtn,
+              ...(locked ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
+            }}
+          >
+            {locked ? `Try again in ${cooldown}s` :
+              loading ? 'Please wait...' :
               mode === 'login' ? 'Log in' :
               mode === 'signup' ? 'Sign up' :
               'Send reset link'}
