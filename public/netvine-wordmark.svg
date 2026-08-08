@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 730 240" role="img" aria-label="Netvine">
+  <!-- mark -->
+  <g transform="translate(10,10) scale(0.43)">
+    <path d="M 256 216 C 256 268, 152 246, 152 306" fill="none" stroke="#B9C4BE" stroke-width="16" stroke-linecap="round"/>
+    <path d="M 256 216 C 256 268, 360 246, 360 306" fill="none" stroke="#B9C4BE" stroke-width="16" stroke-linecap="round"/>
+    <circle cx="256" cy="164" r="62" fill="#1C2B27"/>
+    <circle cx="152" cy="360" r="54" fill="#2F7D5D"/>
+    <circle cx="360" cy="360" r="54" fill="#2F7D5D"/>
+  </g>
+  <!-- wordmark -->
+  <text x="252" y="152" font-family="Georgia, 'Times New Roman', serif" font-size="118" font-weight="700" fill="#1C2B27" letter-spacing="-2">Net<tspan fill="#2F7D5D">vine</tspan></text>
+  <!-- tagline -->
+  <text x="256" y="204" font-family="system-ui, -apple-system, sans-serif" font-size="30" fill="#75837D" letter-spacing="6">GROW YOUR NETWORK</text>
+</svg>
