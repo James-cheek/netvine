@@ -28,6 +28,10 @@ const R = 27;
 const X_GAP = 46;
 const LEVEL_H = 128;
 
+function escapeXml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 let idCounter = 0;
 const newId = () => `m_${Date.now().toString(36)}_${(idCounter++).toString(36)}`;
 
@@ -205,6 +209,7 @@ export default function DownlineTracker() {
   const [loadError, setLoadError] = useState(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showBilling, setShowBilling] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const containerRef = useRef(null);
   const dragRef = useRef(null);
   const pinchRef = useRef(null);
@@ -507,6 +512,92 @@ export default function DownlineTracker() {
     if (!error) setTimeout(() => setSaveState("idle"), 1500);
   };
 
+  /* ---------- export chart as PNG ---------- */
+  const exportAsPng = useCallback(() => {
+    if (!data || !layout || exporting) return;
+    setExporting(true);
+
+    const positions = layout.positions;
+    const allPos = Object.values(positions);
+    if (!allPos.length) { setExporting(false); return; }
+
+    const pad = 60;
+    const badgeH = 36;
+    const xs = allPos.map((p) => p.x);
+    const ys = allPos.map((p) => p.y);
+    const minX = Math.min(...xs) - R - pad;
+    const maxX = Math.max(...xs) + R + pad;
+    const minY = Math.min(...ys) - R - pad;
+    const maxY = Math.max(...ys) + R + 40 + pad + badgeH;
+    const svgW = maxX - minX;
+    const svgH = maxY - minY;
+    const scale = 2;
+
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${svgW} ${svgH}" width="${svgW * scale}" height="${svgH * scale}">`;
+    svg += `<rect x="${minX}" y="${minY}" width="${svgW}" height="${svgH}" fill="${COLORS.canvas}"/>`;
+
+    Object.values(data.nodes).forEach((n) => {
+      n.children.forEach((cid) => {
+        const p1 = positions[n.id];
+        const p2 = positions[cid];
+        if (!p1 || !p2) return;
+        const midY = (p1.y + p2.y) / 2;
+        svg += `<path d="M ${p1.x} ${p1.y + R} C ${p1.x} ${midY}, ${p2.x} ${midY}, ${p2.x} ${p2.y - R}" fill="none" stroke="${COLORS.line}" stroke-width="1.6" stroke-linecap="round"/>`;
+      });
+    });
+
+    Object.values(data.nodes).forEach((n) => {
+      const p = positions[n.id];
+      if (!p) return;
+      const isRoot = n.id === data.rootId;
+      const status = STATUS[n.progress] || STATUS.New;
+      const initials = n.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+      const displayName = n.name.length > 16 ? n.name.slice(0, 15) + "…" : n.name;
+
+      svg += `<circle cx="${p.x}" cy="${p.y}" r="${R}" fill="${isRoot ? COLORS.ink : COLORS.paper}" stroke="${isRoot ? COLORS.ink : status.color}" stroke-width="2.4"/>`;
+      svg += `<text x="${p.x}" y="${p.y}" text-anchor="middle" dy="0.35em" style="font-family:Georgia,serif;font-size:15px;font-weight:700;fill:${isRoot ? "#F4F3EE" : COLORS.ink}">${escapeXml(initials || "?")}</text>`;
+      svg += `<text x="${p.x}" y="${p.y + R + 18}" text-anchor="middle" style="font-family:system-ui,-apple-system,sans-serif;font-size:12.5px;font-weight:600;fill:${COLORS.ink}">${escapeXml(displayName)}</text>`;
+      if (!isRoot) {
+        svg += `<text x="${p.x}" y="${p.y + R + 33}" text-anchor="middle" style="font-family:system-ui,-apple-system,sans-serif;font-size:10.5px;font-weight:600;fill:${status.color};letter-spacing:0.3px">${escapeXml(status.label)}</text>`;
+      }
+    });
+
+    svg += `<text x="${maxX - pad + 10}" y="${maxY - 12}" text-anchor="end" style="font-family:system-ui,-apple-system,sans-serif;font-size:10px;fill:${COLORS.muted};opacity:0.5">Made with Netvine · netvine.app</text>`;
+    svg += "</svg>";
+
+    const canvas = document.createElement("canvas");
+    canvas.width = svgW * scale;
+    canvas.height = svgH * scale;
+    const ctx = canvas.getContext("2d");
+
+    const img = new Image();
+    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((pngBlob) => {
+        if (!pngBlob) { setExporting(false); return; }
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(pngBlob);
+        a.download = "netvine-chart.png";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        setExporting(false);
+      }, "image/png");
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      setExporting(false);
+    };
+
+    img.src = url;
+  }, [data, layout, exporting]);
+
   /* ---------- loading states ---------- */
   if (loadError) {
     return (
@@ -708,6 +799,15 @@ export default function DownlineTracker() {
           <button style={styles.zoomBtn} onClick={() => zoomButtons(1)} aria-label="Zoom in">+</button>
           <button style={styles.zoomBtn} onClick={() => zoomButtons(-1)} aria-label="Zoom out">{"−"}</button>
           <button style={{ ...styles.zoomBtn, fontSize: 12 }} onClick={fitView} aria-label="Fit chart to screen">Fit</button>
+          <div style={{ borderTop: `1px solid ${COLORS.soft}`, margin: "2px 0" }} />
+          <button
+            style={{ ...styles.zoomBtn, fontSize: 11, opacity: exporting ? 0.5 : 1 }}
+            onClick={exportAsPng}
+            disabled={exporting}
+            aria-label="Export chart as PNG"
+          >
+            {exporting ? "…" : "Export"}
+          </button>
         </div>
 
         {/* selection toolbar */}
