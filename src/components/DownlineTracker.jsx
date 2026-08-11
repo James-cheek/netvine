@@ -213,6 +213,7 @@ export default function DownlineTracker() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showBilling, setShowBilling] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [focusId, setFocusId] = useState(null);
   const containerRef = useRef(null);
   const dragRef = useRef(null);
   const pinchRef = useRef(null);
@@ -239,7 +240,33 @@ export default function DownlineTracker() {
     return () => { cancelled = true };
   }, [user]);
 
-  const layout = useMemo(() => (data ? computeLayout(data) : null), [data]);
+  const focusedData = useMemo(() => {
+    if (!data || !focusId || focusId === data.rootId || !data.nodes[focusId]) return data;
+    const nodes = {};
+    const stack = [focusId];
+    while (stack.length) {
+      const id = stack.pop();
+      const n = data.nodes[id];
+      if (!n) continue;
+      nodes[id] = n;
+      stack.push(...n.children);
+    }
+    return { rootId: focusId, nodes };
+  }, [data, focusId]);
+
+  const focusPath = useMemo(() => {
+    if (!data || !focusId || focusId === data.rootId) return [];
+    const path = [];
+    let id = focusId;
+    while (id && data.nodes[id]) {
+      path.unshift({ id, name: data.nodes[id].name });
+      if (id === data.rootId) break;
+      id = data.nodes[id].parentId;
+    }
+    return path;
+  }, [data, focusId]);
+
+  const layout = useMemo(() => (focusedData ? computeLayout(focusedData) : null), [focusedData]);
 
   /* ---------- fit view ---------- */
   const fitView = useCallback(() => {
@@ -269,6 +296,14 @@ export default function DownlineTracker() {
       fitView();
     }
   }, [layout, fitView]);
+
+  const prevFocusRef = useRef(null);
+  useEffect(() => {
+    if (prevFocusRef.current !== focusId && layout) {
+      fitView();
+    }
+    prevFocusRef.current = focusId;
+  }, [focusId, layout, fitView]);
 
   /* ---------- zoom helpers ---------- */
   const zoomAt = useCallback((cx, cy, factor) => {
@@ -504,6 +539,7 @@ export default function DownlineTracker() {
     });
     setSelectedId(null);
     setProfileId(null);
+    if (id === focusId) setFocusId(null);
 
     setSaveState("saving");
     if (childIds.length > 0) {
@@ -517,7 +553,7 @@ export default function DownlineTracker() {
 
   /* ---------- export chart as PNG ---------- */
   const exportAsPng = useCallback(() => {
-    if (!data || !layout || exporting) return;
+    if (!focusedData || !layout || exporting) return;
     setExporting(true);
 
     const positions = layout.positions;
@@ -539,7 +575,7 @@ export default function DownlineTracker() {
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${svgW} ${svgH}" width="${svgW * scale}" height="${svgH * scale}">`;
     svg += `<rect x="${minX}" y="${minY}" width="${svgW}" height="${svgH}" fill="${COLORS.canvas}"/>`;
 
-    Object.values(data.nodes).forEach((n) => {
+    Object.values(focusedData.nodes).forEach((n) => {
       n.children.forEach((cid) => {
         const p1 = positions[n.id];
         const p2 = positions[cid];
@@ -549,10 +585,10 @@ export default function DownlineTracker() {
       });
     });
 
-    Object.values(data.nodes).forEach((n) => {
+    Object.values(focusedData.nodes).forEach((n) => {
       const p = positions[n.id];
       if (!p) return;
-      const isRoot = n.id === data.rootId;
+      const isRoot = n.id === focusedData.rootId;
       const status = STATUS[n.progress] || STATUS.New;
       const initials = n.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
       const displayName = n.name.length > 16 ? n.name.slice(0, 15) + "…" : n.name;
@@ -599,7 +635,7 @@ export default function DownlineTracker() {
     };
 
     img.src = url;
-  }, [data, layout, exporting]);
+  }, [focusedData, layout, exporting]);
 
   /* ---------- loading states ---------- */
   if (loadError) {
@@ -626,8 +662,8 @@ export default function DownlineTracker() {
   }
 
   const selected = selectedId ? data.nodes[selectedId] : null;
-  const teamCount = Object.keys(data.nodes).length - 1;
-  const directCount = data.rootId ? (data.nodes[data.rootId]?.children?.length || 0) : 0;
+  const teamCount = Object.keys(focusedData.nodes).length - 1;
+  const directCount = focusedData.rootId ? (focusedData.nodes[focusedData.rootId]?.children?.length || 0) : 0;
 
   /* ============================ RENDER ============================ */
   if (showBilling) {
@@ -660,7 +696,7 @@ export default function DownlineTracker() {
         <div>
           <img src="/netvine-wordmark.svg" alt="Netvine" style={{ height: 32 }} />
           <div style={styles.subtitle}>
-            {teamCount === 0 ? "No members yet — tap your circle to add your first" : `${teamCount} in your network · ${directCount} direct`}
+            {teamCount === 0 ? "No members yet — tap your circle to add your first" : `${teamCount} in ${focusId ? "team" : "your network"} · ${directCount} direct`}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -682,6 +718,26 @@ export default function DownlineTracker() {
         </div>
       </div>
 
+      {/* breadcrumb */}
+      {focusPath.length > 0 && (
+        <div style={styles.breadcrumb}>
+          {focusPath.map((crumb, i) => (
+            <React.Fragment key={crumb.id}>
+              {i > 0 && <span style={styles.breadcrumbSep}>{">"}</span>}
+              <button
+                style={crumb.id === focusId ? styles.breadcrumbActive : styles.breadcrumbBtn}
+                onClick={() => {
+                  setFocusId(crumb.id === data.rootId ? null : crumb.id);
+                  setSelectedId(null);
+                }}
+              >
+                {crumb.id === data.rootId ? "Me" : crumb.name}
+              </button>
+            </React.Fragment>
+          ))}
+        </div>
+      )}
+
       {/* chart */}
       <div
         ref={containerRef}
@@ -697,7 +753,7 @@ export default function DownlineTracker() {
         <svg width="100%" height="100%" style={{ display: "block", touchAction: "none" }}>
           <g transform={`translate(${transform.x},${transform.y}) scale(${transform.k})`}>
             {/* links */}
-            {Object.values(data.nodes).map((n) =>
+            {Object.values(focusedData.nodes).map((n) =>
               n.children.map((cid) => {
                 const p1 = layout.positions[n.id];
                 const p2 = layout.positions[cid];
@@ -715,11 +771,11 @@ export default function DownlineTracker() {
               })
             )}
             {/* nodes */}
-            {Object.values(data.nodes).map((n) => {
+            {Object.values(focusedData.nodes).map((n) => {
               const p = layout.positions[n.id];
               if (!p) return null;
               const isSel = n.id === selectedId;
-              const isRoot = n.id === data.rootId;
+              const isRoot = n.id === focusedData.rootId;
               const status = STATUS[n.progress] || STATUS.New;
               const initials = n.name
                 .split(/\s+/)
@@ -834,7 +890,12 @@ export default function DownlineTracker() {
               <button style={styles.btn} onClick={() => setRenaming(selected.id)}>
                 Rename
               </button>
-              {selected.id !== data.rootId && (
+              {selected.children.length > 0 && (
+                <button style={styles.btn} onClick={() => { setFocusId(selected.id); setSelectedId(null); }}>
+                  View team
+                </button>
+              )}
+              {selected.id !== data.rootId && selected.id !== focusId && (
                 <button
                   style={{ ...styles.btn, color: "#A05252", borderColor: "#D8B8B8" }}
                   onClick={() => {
@@ -1142,6 +1203,42 @@ const styles = {
     letterSpacing: -0.3,
   },
   subtitle: { fontSize: 13, color: COLORS.muted, marginTop: 2 },
+  breadcrumb: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    padding: "6px 20px",
+    background: COLORS.paper,
+    borderTop: `1px solid ${COLORS.soft}`,
+    flexWrap: "wrap",
+  },
+  breadcrumbBtn: {
+    background: "none",
+    border: "none",
+    padding: "3px 8px",
+    borderRadius: 6,
+    color: COLORS.accent,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+    fontFamily: "system-ui, -apple-system, sans-serif",
+  },
+  breadcrumbActive: {
+    background: COLORS.soft,
+    border: "none",
+    padding: "3px 8px",
+    borderRadius: 6,
+    color: COLORS.ink,
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "default",
+    fontFamily: "system-ui, -apple-system, sans-serif",
+  },
+  breadcrumbSep: {
+    color: COLORS.muted,
+    fontSize: 11,
+    userSelect: "none",
+  },
   saveChip: { fontSize: 12, color: COLORS.muted, fontWeight: 600, paddingTop: 6, minWidth: 60, textAlign: "right" },
   canvas: {
     flex: 1,
