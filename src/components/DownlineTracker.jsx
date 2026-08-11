@@ -16,13 +16,16 @@ const COLORS = {
   soft: "#E5E8E2",
 };
 
-const STATUS = {
-  New: { color: "#5B7A8C", label: "New" },
-  Active: { color: "#2F7D5D", label: "Active" },
-  Growing: { color: "#1F5C42", label: "Growing" },
-  Stalled: { color: "#C08A2D", label: "Stalled" },
-  Inactive: { color: "#A05252", label: "Inactive" },
-};
+const STATUS_LIST = [
+  { key: "New",         color: "#5B7A8C", label: "New" },
+  { key: "Active",      color: "#2F7D5D", label: "Active" },
+  { key: "Pro",         color: "#B8860B", label: "Pro" },
+  { key: "Distributor", color: "#1A6B3C", label: "Distributor" },
+  { key: "Stalled",     color: "#C08A2D", label: "Stalled" },
+  { key: "Inactive",    color: "#A05252", label: "Inactive" },
+];
+
+const STATUS = Object.fromEntries(STATUS_LIST.map((s) => [s.key, s]));
 
 const R = 27;
 const X_GAP = 46;
