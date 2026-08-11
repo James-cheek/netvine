@@ -627,6 +627,7 @@ export default function DownlineTracker() {
 
   const selected = selectedId ? data.nodes[selectedId] : null;
   const teamCount = Object.keys(data.nodes).length - 1;
+  const directCount = data.rootId ? (data.nodes[data.rootId]?.children?.length || 0) : 0;
 
   /* ============================ RENDER ============================ */
   if (showBilling) {
@@ -639,6 +640,7 @@ export default function DownlineTracker() {
         member={data.nodes[profileId]}
         parent={data.nodes[profileId].parentId ? data.nodes[data.nodes[profileId].parentId] : null}
         isRoot={profileId === data.rootId}
+        nodes={data.nodes}
         onBack={() => setProfileId(null)}
         onUpdate={(patch) => updateMember(profileId, patch)}
         onDelete={() => {
@@ -658,7 +660,7 @@ export default function DownlineTracker() {
         <div>
           <img src="/netvine-wordmark.svg" alt="Netvine" style={{ height: 32 }} />
           <div style={styles.subtitle}>
-            {teamCount === 0 ? "No members yet — tap your circle to add your first" : `${teamCount} member${teamCount === 1 ? "" : "s"} in your network`}
+            {teamCount === 0 ? "No members yet — tap your circle to add your first" : `${teamCount} in your network · ${directCount} direct`}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -884,9 +886,22 @@ export default function DownlineTracker() {
 }
 
 /* ======================== PROFILE PAGE ======================== */
-function ProfilePage({ member, parent, isRoot, onBack, onUpdate, onDelete, saveState }) {
+function subtreeSize(nodes, id) {
+  let count = 0;
+  const stack = [...(nodes[id]?.children || [])];
+  while (stack.length) {
+    count++;
+    const c = stack.pop();
+    if (nodes[c]?.children) stack.push(...nodes[c].children);
+  }
+  return count;
+}
+
+function ProfilePage({ member, parent, isRoot, nodes, onBack, onUpdate, onDelete, saveState }) {
   const [note, setNote] = useState("");
   const status = STATUS[member.progress] || STATUS.New;
+  const directs = member.children?.length || 0;
+  const teamSize = subtreeSize(nodes, member.id);
 
   const addEntry = () => {
     if (!note.trim()) return;
@@ -936,6 +951,11 @@ function ProfilePage({ member, parent, isRoot, onBack, onUpdate, onDelete, saveS
             <div style={{ fontSize: 13, color: COLORS.muted, marginTop: 2 }}>
               {isRoot ? "You — top of the network" : parent ? `Under ${parent.name} · joined ${member.joined}` : `Joined ${member.joined}`}
             </div>
+            {teamSize > 0 || directs > 0 ? (
+              <div style={{ fontSize: 12, color: COLORS.accent, fontWeight: 600, marginTop: 4 }}>
+                Team: {teamSize} · Direct: {directs}
+              </div>
+            ) : null}
           </div>
         </div>
 
